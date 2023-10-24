@@ -6,9 +6,9 @@ using Cinemachine;
 public class ScrollZoom : MonoBehaviour
 {
     CinemachineVirtualCamera _virtualCamera;
-    float scroll = 5.0f;
+    float scroll = 2f;
     public float minDistance = 2.0f;
-    public float maxDistance = 10.0f;
+    public float maxDistance = 5f;
 
     private void Start()
     {

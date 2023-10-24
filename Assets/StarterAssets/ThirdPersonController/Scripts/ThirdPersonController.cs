@@ -97,13 +97,16 @@ namespace StarterAssets
         private int _animIDJump;
         private int _animIDFreeFall;
         private int _animIDMotionSpeed;
+        private int _animIDSpeedX;
+        private int _animIDSpeedY;
+        private int _animIDStrafe;
 
 #if ENABLE_INPUT_SYSTEM 
         private PlayerInput _playerInput;
 #endif
         private Animator _animator;
         private CharacterController _controller;
-        private StarterAssetsInputs _input;
+        private InputManager _input;
         private GameObject _mainCamera;
 
         private const float _threshold = 0.01f;
@@ -113,6 +116,13 @@ namespace StarterAssets
         // extra jump counter
         public int _maxJumps = 2;
         private int _jumpsLeft;
+        public bool _strafe = false;
+        private float speedX;
+        private float speedY;
+        private Vector3 speedVector;
+
+        private bool enableSprint = true;
+        private bool enableJump = true;
 
         private bool IsCurrentDeviceMouse
         {
@@ -142,7 +152,7 @@ namespace StarterAssets
             
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
-            _input = GetComponent<StarterAssetsInputs>();
+            _input = GetComponent<InputManager>();
 #if ENABLE_INPUT_SYSTEM 
             _playerInput = GetComponent<PlayerInput>();
 #else
@@ -178,6 +188,9 @@ namespace StarterAssets
             _animIDJump = Animator.StringToHash("Jump");
             _animIDFreeFall = Animator.StringToHash("FreeFall");
             _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
+            _animIDSpeedX = Animator.StringToHash("SpeedX");
+            _animIDSpeedY = Animator.StringToHash("SpeedY");
+            _animIDStrafe = Animator.StringToHash("Strafe");
         }
 
         private void GroundedCheck()
@@ -218,69 +231,67 @@ namespace StarterAssets
 
         private void Move()
         {
-            // set target speed based on move speed, sprint speed and if sprint is pressed
-            float targetSpeed = _input.sprint ? SprintSpeed : MoveSpeed;
+            // set target speed based on move speed, sprint speed, and if sprint is pressed
+            float targetSpeed = _input.sprint && enableSprint ? SprintSpeed : MoveSpeed;
 
             // a simplistic acceleration and deceleration designed to be easy to remove, replace, or iterate upon
 
-            // note: Vector2's == operator uses approximation so is not floating point error prone, and is cheaper than magnitude
+            // note: Vector2's == operator uses approximation so is not floating point error-prone and is cheaper than magnitude
             // if there is no input, set the target speed to 0
             if (_input.move == Vector2.zero) targetSpeed = 0.0f;
 
-            // a reference to the players current horizontal velocity
-            float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
-
-            float speedOffset = 0.1f;
             float inputMagnitude = _input.analogMovement ? _input.move.magnitude : 1f;
 
-            // accelerate or decelerate to target speed
-            if (currentHorizontalSpeed < targetSpeed - speedOffset ||
-                currentHorizontalSpeed > targetSpeed + speedOffset)
-            {
-                // creates curved result rather than a linear one giving a more organic speed change
-                // note T in Lerp is clamped, so we don't need to clamp our speed
-                _speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * inputMagnitude,
-                    Time.deltaTime * SpeedChangeRate);
-
-                // round speed to 3 decimal places
-                _speed = Mathf.Round(_speed * 1000f) / 1000f;
-            }
-            else
-            {
-                _speed = targetSpeed;
-            }
-
+            _speed = targetSpeed;
             _animationBlend = Mathf.Lerp(_animationBlend, targetSpeed, Time.deltaTime * SpeedChangeRate);
             if (_animationBlend < 0.01f) _animationBlend = 0f;
 
-            // normalise input direction
+            // normalizing input direction
             Vector3 inputDirection = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
 
-            // note: Vector2's != operator uses approximation so is not floating point error prone, and is cheaper than magnitude
-            // if there is a move input rotate player when the player is moving
+            // calculate speed vector
+            speedVector = Vector3.Lerp(speedVector, inputDirection.normalized * targetSpeed, Time.deltaTime * SpeedChangeRate);
+
+            // note: Vector2's != operator uses approximation so is not floating point error-prone and is cheaper than magnitude
+            // if there is a move input, rotate the player when the player is moving
             if (_input.move != Vector2.zero)
             {
                 _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg +
                                   _mainCamera.transform.eulerAngles.y;
-                float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity,
-                    RotationSmoothTime);
+            }
 
-                // rotate to face input direction relative to camera position
+            float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity,
+                RotationSmoothTime);
+
+            // rotate to face input direction relative to camera position
+            if (!_strafe)
+            {
                 transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
             }
 
+            Vector3 moveDirection = Vector3.zero;
+            speedX = speedVector.x;
+            speedY = speedVector.z;
+            if (!_strafe)
+            {
+                moveDirection = Quaternion.Euler(0.0f, _mainCamera.transform.eulerAngles.y, 0.0f) * speedVector;
+            }
+            else
+            {
+                // should replace this line for aim IK lower body strafe
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(0, _mainCamera.transform.eulerAngles.y, 0), 15 * Time.deltaTime);
 
-            Vector3 targetDirection = Quaternion.Euler(0.0f, _targetRotation, 0.0f) * Vector3.forward;
-
-            // move the player
-            _controller.Move(targetDirection.normalized * (_speed * Time.deltaTime) +
-                             new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
+                moveDirection = Quaternion.Euler(0.0f, _mainCamera.transform.eulerAngles.y, 0.0f) * speedVector;
+            }
+            _controller.Move(moveDirection * Time.deltaTime + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
 
             // update animator if using character
             if (_hasAnimator)
             {
                 _animator.SetFloat(_animIDSpeed, _animationBlend);
                 _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
+                _animator.SetFloat(_animIDSpeedX, speedX, .1f, Time.deltaTime);
+                _animator.SetFloat(_animIDSpeedY, speedY, .1f, Time.deltaTime);
             }
         }
 
@@ -307,7 +318,7 @@ namespace StarterAssets
                 }
 
                 // Jump
-                if (Input.GetKeyDown(KeyCode.Space) && _jumpTimeoutDelta <= 0.0f)
+                if (Input.GetKeyDown(KeyCode.Space) && _jumpTimeoutDelta <= 0.0f && enableJump)
                 {
                     // the square root of H * -2 * G = how much velocity needed to reach desired height
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
@@ -332,7 +343,7 @@ namespace StarterAssets
                 _jumpTimeoutDelta = JumpTimeout;
 
                 // airborne jump check
-                if (_jumpsLeft > 0 && Input.GetKeyDown(KeyCode.Space))
+                if (_jumpsLeft > 0 && Input.GetKeyDown(KeyCode.Space) && enableJump)
                 {
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
                     if (_hasAnimator)
@@ -407,6 +418,29 @@ namespace StarterAssets
             {
                 AudioSource.PlayClipAtPoint(LandingAudioClip, transform.TransformPoint(_controller.center), FootstepAudioVolume);
             }
+        }
+        public void SetStrafe(bool enable)
+        {
+            _strafe = enable;
+            _animator.SetBool(_animIDStrafe, enable);
+            if (_strafe)
+            {
+                SetSprint(false);
+                SetJump(false);
+            }
+            else
+            {
+                SetSprint(true);
+                SetJump(true);
+            }
+        }
+        public void SetSprint(bool enable)
+        {
+            enableSprint = enable;
+        }
+        public void SetJump(bool enable)
+        {
+            enableJump = enable;
         }
     }
 }
