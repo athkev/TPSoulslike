@@ -100,6 +100,8 @@ namespace StarterAssets
         private int _animIDSpeedX;
         private int _animIDSpeedY;
         private int _animIDStrafe;
+        private int _animIDMoveInput;
+        bool ableToMove = true;
 
 #if ENABLE_INPUT_SYSTEM 
         private PlayerInput _playerInput;
@@ -123,6 +125,8 @@ namespace StarterAssets
 
         private bool enableSprint = true;
         private bool enableJump = true;
+        private bool enableMovement = true;
+        private bool enableRotation = true;
 
         private bool IsCurrentDeviceMouse
         {
@@ -191,6 +195,7 @@ namespace StarterAssets
             _animIDSpeedX = Animator.StringToHash("SpeedX");
             _animIDSpeedY = Animator.StringToHash("SpeedY");
             _animIDStrafe = Animator.StringToHash("Strafe");
+            _animIDMoveInput = Animator.StringToHash("Move Input");
         }
 
         private void GroundedCheck()
@@ -232,7 +237,7 @@ namespace StarterAssets
         private void Move()
         {
             // set target speed based on move speed, sprint speed, and if sprint is pressed
-            float targetSpeed = _input.sprint && enableSprint ? SprintSpeed : MoveSpeed;
+            float targetSpeed = _input.sprint && AbleToSprint() ? SprintSpeed : MoveSpeed;
 
             // a simplistic acceleration and deceleration designed to be easy to remove, replace, or iterate upon
 
@@ -251,13 +256,21 @@ namespace StarterAssets
 
             // calculate speed vector
             speedVector = Vector3.Lerp(speedVector, inputDirection.normalized * targetSpeed, Time.deltaTime * SpeedChangeRate);
+            if (!enableMovement) speedVector = Vector3.zero;
 
             // note: Vector2's != operator uses approximation so is not floating point error-prone and is cheaper than magnitude
             // if there is a move input, rotate the player when the player is moving
-            if (_input.move != Vector2.zero)
+            bool inputMove = (_input.move != Vector2.zero);
+            bool animMoveInput = inputMove && ableToMove;
+            _animator.SetBool(_animIDMoveInput, animMoveInput);
+            if (inputMove)
             {
                 _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg +
                                   _mainCamera.transform.eulerAngles.y;
+            }
+            else
+            {
+                _targetRotation = transform.eulerAngles.y;
             }
 
             float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity,
@@ -266,7 +279,7 @@ namespace StarterAssets
             // rotate to face input direction relative to camera position
             if (!_strafe)
             {
-                transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
+                if (enableRotation) transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
             }
 
             Vector3 moveDirection = Vector3.zero;
@@ -279,7 +292,7 @@ namespace StarterAssets
             else
             {
                 // should replace this line for aim IK lower body strafe
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(0, _mainCamera.transform.eulerAngles.y, 0), 15 * Time.deltaTime);
+                if (enableRotation) transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(0, _mainCamera.transform.eulerAngles.y, 0), 15 * Time.deltaTime);
 
                 moveDirection = Quaternion.Euler(0.0f, _mainCamera.transform.eulerAngles.y, 0.0f) * speedVector;
             }
@@ -318,7 +331,7 @@ namespace StarterAssets
                 }
 
                 // Jump
-                if (Input.GetKeyDown(KeyCode.Space) && _jumpTimeoutDelta <= 0.0f && enableJump)
+                if (Input.GetKeyDown(KeyCode.Space) && _jumpTimeoutDelta <= 0.0f && AbleToJump())
                 {
                     // the square root of H * -2 * G = how much velocity needed to reach desired height
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
@@ -343,7 +356,7 @@ namespace StarterAssets
                 _jumpTimeoutDelta = JumpTimeout;
 
                 // airborne jump check
-                if (_jumpsLeft > 0 && Input.GetKeyDown(KeyCode.Space) && enableJump)
+                if (_jumpsLeft > 0 && Input.GetKeyDown(KeyCode.Space) && AbleToJump())
                 {
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
                     if (_hasAnimator)
@@ -423,16 +436,9 @@ namespace StarterAssets
         {
             _strafe = enable;
             _animator.SetBool(_animIDStrafe, enable);
-            if (_strafe)
-            {
-                SetSprint(false);
-                SetJump(false);
-            }
-            else
-            {
-                SetSprint(true);
-                SetJump(true);
-            }
+            
+            //SetSprint(!enable);
+            //SetJump(!enable);
         }
         public void SetSprint(bool enable)
         {
@@ -441,6 +447,37 @@ namespace StarterAssets
         public void SetJump(bool enable)
         {
             enableJump = enable;
+        }
+        public void SetMovement(bool enable)
+        {
+            enableMovement = enable;
+            enableJump = enable;
+            ableToMove = enable;
+        }
+        public void SetAbleToMove()
+        {
+            if (!_animator.IsInTransition(6)) ableToMove = true;
+        }
+        public void SetRotation(bool enable)
+        {
+            enableRotation = enable;
+        }
+        public float GetInputAngle()
+        {
+            var inputDirection = _input.move;
+            return Mathf.Atan2(inputDirection.x, inputDirection.y) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
+        }
+        public Vector2 GetInput()
+        {
+            return _input.move;
+        }
+        private bool AbleToJump()
+        {
+            return enableJump && !_strafe;
+        }
+        private bool AbleToSprint()
+        {
+            return enableSprint && !_strafe;
         }
     }
 }
