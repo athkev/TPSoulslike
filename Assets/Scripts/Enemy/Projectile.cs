@@ -12,7 +12,7 @@ public class Projectile : MonoBehaviour
     RaycastHit hit;
     private void Start()
     {
-        Destroy(gameObject, 3);
+        Destroy(gameObject, 60);
     }
     void Update()
     {

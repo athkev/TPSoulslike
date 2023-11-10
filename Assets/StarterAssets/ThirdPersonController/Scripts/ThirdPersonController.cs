@@ -479,5 +479,9 @@ namespace StarterAssets
         {
             return enableSprint && !_strafe;
         }
+        public void ResetVerticalSpeed()
+        {
+            _verticalVelocity = 0;
+        }
     }
 }
