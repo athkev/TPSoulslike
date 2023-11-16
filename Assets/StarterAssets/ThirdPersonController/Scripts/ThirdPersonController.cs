@@ -1,10 +1,10 @@
-﻿ using UnityEngine;
+﻿    using UnityEngine;
 #if ENABLE_INPUT_SYSTEM 
 using UnityEngine.InputSystem;
 #endif
 
 /* Note: animations are called via the controller for both the character and capsule using animator null checks
- */
+    */
 
 namespace StarterAssets
 {
@@ -101,6 +101,9 @@ namespace StarterAssets
         private int _animIDSpeedY;
         private int _animIDStrafe;
         private int _animIDMoveInput;
+        private int _animIDWallRunning;
+        private int _animIDWallLeft;
+        private int _animIDWallRunInit;
         bool ableToMove = true;
 
 #if ENABLE_INPUT_SYSTEM 
@@ -108,6 +111,7 @@ namespace StarterAssets
 #endif
         private Animator _animator;
         private CharacterController _controller;
+        private Rigidbody _rb;
         private InputManager _input;
         private GameObject _mainCamera;
 
@@ -127,6 +131,20 @@ namespace StarterAssets
         private bool enableJump = true;
         private bool enableMovement = true;
         private bool enableRotation = true;
+
+        [Header("Wall Run")]
+        public LayerMask wallRunnable;
+        private bool isWallRunning = false;
+        private RaycastHit wallHit;
+        private Vector3 wallRunDirection;
+
+        bool onLeftWall;
+        bool onRightWall;
+        RaycastHit leftWallHit;
+        RaycastHit rightWallHit;
+        Vector3 wallNormal;
+        public float wallrunInitialJump = 5f;
+
 
         private bool IsCurrentDeviceMouse
         {
@@ -156,6 +174,7 @@ namespace StarterAssets
             
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
+            _rb = GetComponent<Rigidbody>();
             _input = GetComponent<InputManager>();
 #if ENABLE_INPUT_SYSTEM 
             _playerInput = GetComponent<PlayerInput>();
@@ -175,9 +194,19 @@ namespace StarterAssets
         {
             _hasAnimator = TryGetComponent(out _animator);
 
-            JumpAndGravity();
             GroundedCheck();
-            Move();
+
+            if (isWallRunning)
+            {
+                HandleWallRun();
+            }
+            else
+            {
+                Move();
+            }
+            CheckWallRun();
+
+            JumpAndGravity();
         }
 
         private void LateUpdate()
@@ -196,6 +225,9 @@ namespace StarterAssets
             _animIDSpeedY = Animator.StringToHash("SpeedY");
             _animIDStrafe = Animator.StringToHash("Strafe");
             _animIDMoveInput = Animator.StringToHash("Move Input");
+            _animIDWallRunning = Animator.StringToHash("WallRunning");
+            _animIDWallLeft = Animator.StringToHash("WallRunningLeft");
+            _animIDWallRunInit = Animator.StringToHash("WallRunInit");
         }
 
         private void GroundedCheck()
@@ -266,7 +298,7 @@ namespace StarterAssets
             if (inputMove)
             {
                 _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg +
-                                  _mainCamera.transform.eulerAngles.y;
+                                    _mainCamera.transform.eulerAngles.y;
             }
             else
             {
@@ -297,6 +329,7 @@ namespace StarterAssets
                 moveDirection = Quaternion.Euler(0.0f, _mainCamera.transform.eulerAngles.y, 0.0f) * speedVector;
             }
             _controller.Move(moveDirection * Time.deltaTime + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
+            //_rb.AddForce(moveDirection);
 
             // update animator if using character
             if (_hasAnimator)
@@ -335,12 +368,12 @@ namespace StarterAssets
                 {
                     // the square root of H * -2 * G = how much velocity needed to reach desired height
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
+                    //_rb.AddForce(new Vector3(0, JumpHeight, 0));
 
                     // update animator if using character
                     if (_hasAnimator)
                     {
                         _animator.SetTrigger(_animIDJump);
-                        _jumpsLeft--;
                     }
                 }
 
@@ -359,6 +392,8 @@ namespace StarterAssets
                 if (_jumpsLeft > 0 && Input.GetKeyDown(KeyCode.Space) && AbleToJump())
                 {
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
+                    //_rb.AddForce(new Vector3(0, JumpHeight, 0));
+
                     if (_hasAnimator)
                     {
                         _animator.SetTrigger(_animIDJump);
@@ -380,9 +415,6 @@ namespace StarterAssets
                         _animator.SetBool(_animIDFreeFall, true);
                     }
                 }
-
-                // if we are not grounded, do not jump
-                _input.jump = false;
             }
 
             // apply gravity over time if under terminal (multiply by delta time twice to linearly speed up over time)
@@ -392,6 +424,80 @@ namespace StarterAssets
             }
         }
 
+        private void CheckWallRun()
+        {
+            onLeftWall = Physics.Raycast(transform.position + new Vector3(0, 1, 0), -transform.right, out leftWallHit, 0.7f, wallRunnable);
+            onRightWall = Physics.Raycast(transform.position + new Vector3(0, 1, 0), transform.right, out rightWallHit, 0.7f, wallRunnable);
+            if ((onRightWall || onLeftWall) && !isWallRunning && _input.jump)
+            {
+                _animator.SetBool(_animIDWallLeft, onLeftWall);
+                StartWallRun();
+            }
+            else if (((!onRightWall && !onLeftWall) || !_input.jump )&& isWallRunning)
+            {
+                ExitWallRun();
+            }
+        }
+        private void StartWallRun()
+        {
+            Debug.Log("Start Wall Run");
+            _animator.SetTrigger(_animIDWallRunInit);
+            _animator.SetBool(_animIDWallRunning, true);
+
+
+            isWallRunning = true;
+            _jumpsLeft = _maxJumps;
+            wallNormal = onLeftWall ? leftWallHit.normal : rightWallHit.normal;
+            wallRunDirection = Vector3.Cross(wallNormal, Vector3.up);
+
+            if (_verticalVelocity > 0f)
+            {
+                _verticalVelocity = wallrunInitialJump;
+            }
+            else
+            {
+                _verticalVelocity = 0;
+            }
+
+            if (Vector3.Dot(wallRunDirection, transform.forward) < 0)
+            {
+                wallRunDirection = -wallRunDirection;
+            }
+
+            Vector3 pos = onLeftWall ? leftWallHit.point : rightWallHit.point;
+            if (Vector3.Distance(transform.position, pos) < .5f)
+            {
+                _controller.Move((.5f - Vector3.Distance(transform.position, pos)) * wallNormal.normalized);
+                Debug.Log("MOVED POSITION");
+            }
+
+            transform.rotation = Quaternion.LookRotation(wallRunDirection, Vector3.up);
+        }
+        private void ExitWallRun()
+        {
+            Debug.Log("Exit Wall Run");
+            isWallRunning = false;
+            _animator.SetBool(_animIDWallRunning, false);
+            //jump towards camera
+            _verticalVelocity = 0f;
+        }
+        private void HandleWallRun()
+        {
+            if (_verticalVelocity > 0) _verticalVelocity += Gravity / 4 * Time.deltaTime;
+            else _verticalVelocity = 0;
+            // Apply a force to the character controller to keep it on the wall
+            //replace 8 with current speed
+            _controller.Move(wallRunDirection * 8 * Time.deltaTime + _verticalVelocity * Vector3.up * Time.deltaTime);
+
+            // Check if the player wants to stop wall running
+            if (!_input.jump)
+            {
+                //move towards where camera is facing
+                ExitWallRun();
+            }
+        }
+
+
         private static float ClampAngle(float lfAngle, float lfMin, float lfMax)
         {
             if (lfAngle < -360f) lfAngle += 360f;
@@ -399,18 +505,26 @@ namespace StarterAssets
             return Mathf.Clamp(lfAngle, lfMin, lfMax);
         }
 
-        private void OnDrawGizmosSelected()
+        private void OnDrawGizmos()
         {
+            // Draw the grounded sphere
             Color transparentGreen = new Color(0.0f, 1.0f, 0.0f, 0.35f);
             Color transparentRed = new Color(1.0f, 0.0f, 0.0f, 0.35f);
 
-            if (Grounded) Gizmos.color = transparentGreen;
-            else Gizmos.color = transparentRed;
+            if (Grounded)
+                Gizmos.color = transparentGreen;
+            else
+                Gizmos.color = transparentRed;
 
-            // when selected, draw a gizmo in the position of, and matching radius of, the grounded collider
-            Gizmos.DrawSphere(
-                new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z),
-                GroundedRadius);
+            // Draw the ray for left wall
+            if (!onLeftWall) Gizmos.color = Color.red;
+            else Gizmos.color = Color.green;
+            Gizmos.DrawRay(transform.position, -transform.right * 0.7f);
+
+            // Draw the ray for right wall
+            if (!onRightWall) Gizmos.color = Color.red;
+            else Gizmos.color = Color.green;
+            Gizmos.DrawRay(transform.position, transform.right * 0.7f);
         }
 
         private void OnFootstep(AnimationEvent animationEvent)
