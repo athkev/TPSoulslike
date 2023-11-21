@@ -8,7 +8,6 @@ using UnityEngine.InputSystem;
 
 namespace StarterAssets
 {
-    [RequireComponent(typeof(CharacterController))]
 #if ENABLE_INPUT_SYSTEM 
     [RequireComponent(typeof(PlayerInput))]
 #endif
@@ -59,26 +58,6 @@ namespace StarterAssets
         [Tooltip("What layers the character uses as ground")]
         public LayerMask GroundLayers;
 
-        [Header("Cinemachine")]
-        [Tooltip("The follow target set in the Cinemachine Virtual Camera that the camera will follow")]
-        public GameObject CinemachineCameraTarget;
-
-        [Tooltip("How far in degrees can you move the camera up")]
-        public float TopClamp = 70.0f;
-
-        [Tooltip("How far in degrees can you move the camera down")]
-        public float BottomClamp = -30.0f;
-
-        [Tooltip("Additional degress to override the camera. Useful for fine tuning camera position when locked")]
-        public float CameraAngleOverride = 0.0f;
-
-        [Tooltip("For locking the camera position on all axis")]
-        public bool LockCameraPosition = false;
-
-        // cinemachine
-        private float _cinemachineTargetYaw;
-        private float _cinemachineTargetPitch;
-
         // player
         private float _speed;
         private float _animationBlend;
@@ -104,6 +83,7 @@ namespace StarterAssets
         private int _animIDWallRunning;
         private int _animIDWallLeft;
         private int _animIDWallRunInit;
+        private int _animIDWallJump;
         bool ableToMove = true;
 
 #if ENABLE_INPUT_SYSTEM 
@@ -135,15 +115,16 @@ namespace StarterAssets
         [Header("Wall Run")]
         public LayerMask wallRunnable;
         private bool isWallRunning = false;
-        private RaycastHit wallHit;
         private Vector3 wallRunDirection;
 
         bool onLeftWall;
         bool onRightWall;
+        bool currentlyOnLeft;
         RaycastHit leftWallHit;
         RaycastHit rightWallHit;
         Vector3 wallNormal;
         public float wallrunInitialJump = 5f;
+        float wallVerticalVelocity;
 
 
         private bool IsCurrentDeviceMouse
@@ -169,9 +150,7 @@ namespace StarterAssets
         }
 
         private void Start()
-        {
-            _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
-            
+        {            
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
             _rb = GetComponent<Rigidbody>();
@@ -194,8 +173,17 @@ namespace StarterAssets
         {
             _hasAnimator = TryGetComponent(out _animator);
 
-            GroundedCheck();
+            if (!isWallRunning)
+            {
+                GroundedCheck();
+                JumpAndGravity();
+            }
+            CheckWallRun();
 
+        }
+
+        private void FixedUpdate()
+        {
             if (isWallRunning)
             {
                 HandleWallRun();
@@ -204,14 +192,6 @@ namespace StarterAssets
             {
                 Move();
             }
-            CheckWallRun();
-
-            JumpAndGravity();
-        }
-
-        private void LateUpdate()
-        {
-            CameraRotation();
         }
 
         private void AssignAnimationIDs()
@@ -228,6 +208,7 @@ namespace StarterAssets
             _animIDWallRunning = Animator.StringToHash("WallRunning");
             _animIDWallLeft = Animator.StringToHash("WallRunningLeft");
             _animIDWallRunInit = Animator.StringToHash("WallRunInit");
+            _animIDWallJump = Animator.StringToHash("WallJump");
         }
 
         private void GroundedCheck()
@@ -244,28 +225,6 @@ namespace StarterAssets
                 _animator.SetBool(_animIDGrounded, Grounded);
             }
         }
-
-        private void CameraRotation()
-        {
-            // if there is an input and camera position is not fixed
-            if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
-            {
-                //Don't multiply mouse input by Time.deltaTime;
-                float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
-
-                _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier;
-                _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier;
-            }
-
-            // clamp our rotations so our values are limited 360 degrees
-            _cinemachineTargetYaw = ClampAngle(_cinemachineTargetYaw, float.MinValue, float.MaxValue);
-            _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
-
-            // Cinemachine will follow this target
-            CinemachineCameraTarget.transform.rotation = Quaternion.Euler(_cinemachineTargetPitch + CameraAngleOverride,
-                _cinemachineTargetYaw, 0.0f);
-        }
-
         private void Move()
         {
             // set target speed based on move speed, sprint speed, and if sprint is pressed
@@ -290,12 +249,8 @@ namespace StarterAssets
             speedVector = Vector3.Lerp(speedVector, inputDirection.normalized * targetSpeed, Time.deltaTime * SpeedChangeRate);
             if (!enableMovement) speedVector = Vector3.zero;
 
-            // note: Vector2's != operator uses approximation so is not floating point error-prone and is cheaper than magnitude
-            // if there is a move input, rotate the player when the player is moving
-            bool inputMove = (_input.move != Vector2.zero);
-            bool animMoveInput = inputMove && ableToMove;
-            _animator.SetBool(_animIDMoveInput, animMoveInput);
-            if (inputMove)
+            _animator.SetBool(_animIDMoveInput, (_input.move != Vector2.zero) && ableToMove);
+            if (_input.move != Vector2.zero)
             {
                 _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg +
                                     _mainCamera.transform.eulerAngles.y;
@@ -308,28 +263,23 @@ namespace StarterAssets
             float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity,
                 RotationSmoothTime);
 
-            // rotate to face input direction relative to camera position
-            if (!_strafe)
-            {
-                if (enableRotation) transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
-            }
-
             Vector3 moveDirection = Vector3.zero;
             speedX = speedVector.x;
             speedY = speedVector.z;
             if (!_strafe)
             {
+                if (enableRotation && Grounded) transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
                 moveDirection = Quaternion.Euler(0.0f, _mainCamera.transform.eulerAngles.y, 0.0f) * speedVector;
             }
             else
             {
                 // should replace this line for aim IK lower body strafe
                 if (enableRotation) transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(0, _mainCamera.transform.eulerAngles.y, 0), 15 * Time.deltaTime);
-
                 moveDirection = Quaternion.Euler(0.0f, _mainCamera.transform.eulerAngles.y, 0.0f) * speedVector;
             }
-            _controller.Move(moveDirection * Time.deltaTime + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
-            //_rb.AddForce(moveDirection);
+            //switch to rb _controller.Move(moveDirection * Time.deltaTime + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
+            if (Grounded) _rb.velocity = new Vector3(moveDirection.x, _rb.velocity.y, moveDirection.z);
+            else AirMovement(inputDirection);
 
             // update animator if using character
             if (_hasAnimator)
@@ -339,6 +289,19 @@ namespace StarterAssets
                 _animator.SetFloat(_animIDSpeedX, speedX, .1f, Time.deltaTime);
                 _animator.SetFloat(_animIDSpeedY, speedY, .1f, Time.deltaTime);
             }
+        }
+
+        private Vector3 airMovement;
+        public float airboneAcceleration = 5f;
+        private void AirMovement(Vector3 inputVector)
+        {
+            float x = _rb.velocity.x;
+            float z = _rb.velocity.z;
+            airMovement = _mainCamera.transform.TransformDirection(inputVector).normalized - _rb.velocity.normalized;
+
+            if (Mathf.Abs(x + airMovement.x) < SprintSpeed || IsOppositeDirection(x, airMovement.x)) x += airMovement.x * Time.deltaTime * airboneAcceleration;
+            if (Mathf.Abs(z + airMovement.z) < SprintSpeed || IsOppositeDirection(z, airMovement.z)) z += airMovement.z * Time.deltaTime * airboneAcceleration;
+            _rb.velocity = new Vector3(x, _rb.velocity.y, z);
         }
 
         private void JumpAndGravity()
@@ -367,14 +330,10 @@ namespace StarterAssets
                 if (Input.GetKeyDown(KeyCode.Space) && _jumpTimeoutDelta <= 0.0f && AbleToJump())
                 {
                     // the square root of H * -2 * G = how much velocity needed to reach desired height
+                    ResetVerticalSpeed();
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
-                    //_rb.AddForce(new Vector3(0, JumpHeight, 0));
-
-                    // update animator if using character
-                    if (_hasAnimator)
-                    {
-                        _animator.SetTrigger(_animIDJump);
-                    }
+                    _rb.AddForce(new Vector3(0, JumpHeight, 0), ForceMode.Impulse);
+                    _animator.SetTrigger(_animIDJump);
                 }
 
                 // jump timeout
@@ -391,14 +350,12 @@ namespace StarterAssets
                 // airborne jump check
                 if (_jumpsLeft > 0 && Input.GetKeyDown(KeyCode.Space) && AbleToJump())
                 {
+                    ResetVerticalSpeed();
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
-                    //_rb.AddForce(new Vector3(0, JumpHeight, 0));
 
-                    if (_hasAnimator)
-                    {
-                        _animator.SetTrigger(_animIDJump);
-                        _jumpsLeft--;
-                    }
+                    _rb.AddForce(new Vector3(0, JumpHeight, 0), ForceMode.Impulse);
+                    _animator.SetTrigger(_animIDJump);
+                    _jumpsLeft--;
                 }
 
 
@@ -426,16 +383,14 @@ namespace StarterAssets
 
         private void CheckWallRun()
         {
-            onLeftWall = Physics.Raycast(transform.position + new Vector3(0, 1, 0), -transform.right, out leftWallHit, 0.7f, wallRunnable);
-            onRightWall = Physics.Raycast(transform.position + new Vector3(0, 1, 0), transform.right, out rightWallHit, 0.7f, wallRunnable);
+            onLeftWall = Physics.Raycast(transform.position + new Vector3(0, 1, 0), isWallRunning? -transform.right : -_mainCamera.transform.right, out leftWallHit, 0.7f, wallRunnable);
+            onRightWall = Physics.Raycast(transform.position + new Vector3(0, 1, 0), isWallRunning ? transform.right : _mainCamera.transform.right, out rightWallHit, 0.7f, wallRunnable);
             if ((onRightWall || onLeftWall) && !isWallRunning && _input.jump)
             {
-                _animator.SetBool(_animIDWallLeft, onLeftWall);
+                if (onRightWall) currentlyOnLeft = false;
+                else currentlyOnLeft = true;
+                _animator.SetBool(_animIDWallLeft, currentlyOnLeft);
                 StartWallRun();
-            }
-            else if (((!onRightWall && !onLeftWall) || !_input.jump )&& isWallRunning)
-            {
-                ExitWallRun();
             }
         }
         private void StartWallRun()
@@ -450,59 +405,74 @@ namespace StarterAssets
             wallNormal = onLeftWall ? leftWallHit.normal : rightWallHit.normal;
             wallRunDirection = Vector3.Cross(wallNormal, Vector3.up);
 
-            if (_verticalVelocity > 0f)
+            if (_rb.velocity.y >= 0f || Grounded)
             {
-                _verticalVelocity = wallrunInitialJump;
+                wallVerticalVelocity = wallrunInitialJump;
             }
             else
             {
-                _verticalVelocity = 0;
+                wallVerticalVelocity = 0;
             }
+            ResetVerticalSpeed();
 
             if (Vector3.Dot(wallRunDirection, transform.forward) < 0)
             {
                 wallRunDirection = -wallRunDirection;
             }
 
-            Vector3 pos = onLeftWall ? leftWallHit.point : rightWallHit.point;
-            if (Vector3.Distance(transform.position, pos) < .5f)
+            transform.rotation = Quaternion.LookRotation(wallRunDirection, Vector3.up);
+            onLeftWall = Physics.Raycast(transform.position + new Vector3(0, 1, 0), isWallRunning ? -transform.right : -_mainCamera.transform.right, out leftWallHit, 0.7f, wallRunnable);
+            onRightWall = Physics.Raycast(transform.position + new Vector3(0, 1, 0), isWallRunning ? transform.right : _mainCamera.transform.right, out rightWallHit, 0.7f, wallRunnable);
+            float distance = currentlyOnLeft ? leftWallHit.distance : rightWallHit.distance;
+
+            if (distance <= .5f)
             {
-                _controller.Move((.5f - Vector3.Distance(transform.position, pos)) * wallNormal.normalized);
+                //switch to rb _controller.Move((.5f - Vector3.Distance(transform.position, pos)) * wallNormal.normalized);
+                transform.position = transform.position + wallNormal.normalized * (.5f - distance);
                 Debug.Log("MOVED POSITION");
             }
-
-            transform.rotation = Quaternion.LookRotation(wallRunDirection, Vector3.up);
         }
         private void ExitWallRun()
         {
             Debug.Log("Exit Wall Run");
             isWallRunning = false;
             _animator.SetBool(_animIDWallRunning, false);
-            //jump towards camera
-            _verticalVelocity = 0f;
+            ResetVerticalSpeed();
         }
         private void HandleWallRun()
         {
-            if (_verticalVelocity > 0) _verticalVelocity += Gravity / 4 * Time.deltaTime;
-            else _verticalVelocity = 0;
-            // Apply a force to the character controller to keep it on the wall
-            //replace 8 with current speed
-            _controller.Move(wallRunDirection * 8 * Time.deltaTime + _verticalVelocity * Vector3.up * Time.deltaTime);
+            //if (_verticalVelocity > 0) _verticalVelocity += Gravity / 4 * Time.deltaTime;
+            //else _verticalVelocity = 0;
+            //switch to rb _controller.Move(wallRunDirection * 8 * Time.deltaTime + _verticalVelocity * Vector3.up * Time.deltaTime);
+
+            transform.rotation = Quaternion.LookRotation(wallRunDirection, Vector3.up);
+            if (wallVerticalVelocity >= 0)
+            {
+                Debug.Log("velocity over 0 , increasing it");
+                wallVerticalVelocity += Gravity /2* Time.deltaTime;
+            }
+            else wallVerticalVelocity = 0f;
+            _rb.velocity = new Vector3(wallRunDirection.x, 0, wallRunDirection.z) * 8 + Vector3.up * wallVerticalVelocity;
 
             // Check if the player wants to stop wall running
             if (!_input.jump)
             {
                 //move towards where camera is facing
                 ExitWallRun();
+                JumpTowards(_mainCamera.transform.forward);
+            }
+            else if ((currentlyOnLeft && !onLeftWall) || (!currentlyOnLeft && !onRightWall))
+            {
+                //give previous momentum
+                ExitWallRun();
             }
         }
-
-
-        private static float ClampAngle(float lfAngle, float lfMin, float lfMax)
+        private void JumpTowards(Vector3 towards)
         {
-            if (lfAngle < -360f) lfAngle += 360f;
-            if (lfAngle > 360f) lfAngle -= 360f;
-            return Mathf.Clamp(lfAngle, lfMin, lfMax);
+            Debug.Log("Jump towards : " + towards);
+            _rb.AddForce(towards * JumpHeight, ForceMode.VelocityChange);
+            _animator.SetTrigger(_animIDWallJump);
+            transform.rotation = Quaternion.Euler(0, _mainCamera.transform.eulerAngles.y, 0);
         }
 
         private void OnDrawGizmos()
@@ -519,14 +489,14 @@ namespace StarterAssets
             // Draw the ray for left wall
             if (!onLeftWall) Gizmos.color = Color.red;
             else Gizmos.color = Color.green;
-            Gizmos.DrawRay(transform.position, -transform.right * 0.7f);
+            Gizmos.DrawRay(transform.position + new Vector3(0, 1, 0), isWallRunning ? -transform.right : -_mainCamera.transform.right * 0.7f);
 
             // Draw the ray for right wall
             if (!onRightWall) Gizmos.color = Color.red;
             else Gizmos.color = Color.green;
-            Gizmos.DrawRay(transform.position, transform.right * 0.7f);
+            Gizmos.DrawRay(transform.position + new Vector3(0, 1, 0), isWallRunning ? transform.right : _mainCamera.transform.right * 0.7f);
         }
-
+            
         private void OnFootstep(AnimationEvent animationEvent)
         {
             if (animationEvent.animatorClipInfo.weight > 0.5f)
@@ -596,6 +566,11 @@ namespace StarterAssets
         public void ResetVerticalSpeed()
         {
             _verticalVelocity = 0;
+            _rb.velocity = new Vector3(_rb.velocity.x, 0, _rb.velocity.z);
+        }
+        private bool IsOppositeDirection(float a, float b)
+        {
+            return (Mathf.Sign(a) >= 0 && Mathf.Sign(b) < 0) || (Mathf.Sign(a) < 0 && Mathf.Sign(b) >= 0);
         }
     }
 }
