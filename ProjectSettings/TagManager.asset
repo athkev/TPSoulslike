@@ -12,13 +12,13 @@ TagManager:
   - Player
   - Water
   - UI
-  - 
-  - 
-  - 
+  - Enemy
+  - EnemyProjectiles
+  - PlayerProjectiles
   - Ground
   - WallRunnable
-  - 
-  - 
+  - Parry
+  - PlayerTarget
   - 
   - 
   - 

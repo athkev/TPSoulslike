@@ -7,6 +7,12 @@ namespace StarterAssets
 {
 	public class InputManager : MonoBehaviour
 	{
+		private static InputManager instance;
+		public static InputManager Instance
+		{
+			get { return instance; }
+		}
+
 		[Header("Character Input Values")]
 		public Vector2 move;
 		public Vector2 look;
@@ -20,8 +26,12 @@ namespace StarterAssets
 		public bool cursorLocked = true;
 		public bool cursorInputForLook = true;
 
+        private void Start()
+        {
+            instance = this;
+        }
 #if ENABLE_INPUT_SYSTEM
-		public void OnMove(InputValue value)
+        public void OnMove(InputValue value)
 		{
 			MoveInput(value.Get<Vector2>());
 		}
@@ -71,7 +81,7 @@ namespace StarterAssets
 			SetCursorState(cursorLocked);
 		}
 
-		private void SetCursorState(bool newState)
+		public void SetCursorState(bool newState)
 		{
 			Cursor.lockState = newState ? CursorLockMode.Locked : CursorLockMode.None;
 		}

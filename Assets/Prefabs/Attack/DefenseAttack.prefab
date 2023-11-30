@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 599653167689406934}
   - component: {fileID: 5490397970791907313}
   - component: {fileID: 8508655731627958711}
-  m_Layer: 0
+  m_Layer: 11
   m_Name: Distortion(Delete for Mobile)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -41,7 +41,7 @@ ParticleSystem:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 128138110697358247}
   serializedVersion: 8
-  lengthInSec: 2
+  lengthInSec: 1
   simulationSpeed: 1
   stopAction: 0
   cullingMode: 3
@@ -4909,7 +4909,7 @@ GameObject:
   - component: {fileID: 4539878657797846666}
   - component: {fileID: 8323966719297759669}
   - component: {fileID: 7636733836240020945}
-  m_Layer: 0
+  m_Layer: 11
   m_Name: Hit
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4941,7 +4941,7 @@ ParticleSystem:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2457324883807645170}
   serializedVersion: 8
-  lengthInSec: 2
+  lengthInSec: 1
   simulationSpeed: 1
   stopAction: 0
   cullingMode: 1
@@ -9809,7 +9809,7 @@ GameObject:
   - component: {fileID: 2850118996653382098}
   - component: {fileID: 5527494746545382441}
   - component: {fileID: 9067771251958222445}
-  m_Layer: 0
+  m_Layer: 11
   m_Name: Sparks
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -9839,7 +9839,7 @@ ParticleSystem:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2644548508985682793}
   serializedVersion: 8
-  lengthInSec: 4
+  lengthInSec: 1
   simulationSpeed: 2
   stopAction: 0
   cullingMode: 3
@@ -14707,7 +14707,7 @@ GameObject:
   - component: {fileID: 3951113631104464826}
   - component: {fileID: 3438973948551870081}
   - component: {fileID: 5962085895213673814}
-  m_Layer: 0
+  m_Layer: 11
   m_Name: SparksCore
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -14737,7 +14737,7 @@ ParticleSystem:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2799886362984714815}
   serializedVersion: 8
-  lengthInSec: 2
+  lengthInSec: 1
   simulationSpeed: 1
   stopAction: 0
   cullingMode: 3
@@ -19614,7 +19614,7 @@ GameObject:
   - component: {fileID: 2584317504371231766}
   - component: {fileID: 5049973291607110577}
   - component: {fileID: 4391817603677194054}
-  m_Layer: 0
+  m_Layer: 11
   m_Name: Smoke
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -19644,7 +19644,7 @@ ParticleSystem:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4752743507893123234}
   serializedVersion: 8
-  lengthInSec: 4
+  lengthInSec: 1
   simulationSpeed: 2
   stopAction: 0
   cullingMode: 3
@@ -24512,7 +24512,9 @@ GameObject:
   - component: {fileID: 6849686500776147591}
   - component: {fileID: 5428007788634415332}
   - component: {fileID: 7718097135396203960}
-  m_Layer: 0
+  - component: {fileID: 7339033417019273823}
+  - component: {fileID: 3032454766415908085}
+  m_Layer: 11
   m_Name: DefenseAttack
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -24546,7 +24548,7 @@ ParticleSystem:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6362843353244978971}
   serializedVersion: 8
-  lengthInSec: 2
+  lengthInSec: 1
   simulationSpeed: 1
   stopAction: 2
   cullingMode: 1
@@ -29412,6 +29414,42 @@ ParticleSystemRenderer:
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
   m_MaskInteraction: 0
+--- !u!65 &7339033417019273823
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6362843353244978971}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 4.85, y: 2.9, z: 3.55}
+  m_Center: {x: 0, y: 0, z: 0.74}
+--- !u!114 &3032454766415908085
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6362843353244978971}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b435aa48417a447438a3429b40b52a71, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  colliderUpDuration: 0.33
+  dmg: 1
+  deflectedProjectilePrefab: {fileID: 1705649377050084671, guid: 76f9a6cea1ed894429033b4cb0510884, type: 3}
 --- !u!1 &6834230215774062575
 GameObject:
   m_ObjectHideFlags: 0
@@ -29423,7 +29461,7 @@ GameObject:
   - component: {fileID: 1236274302501882444}
   - component: {fileID: 7340885891184308564}
   - component: {fileID: 5005337673010052541}
-  m_Layer: 0
+  m_Layer: 11
   m_Name: Flare
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -29453,7 +29491,7 @@ ParticleSystem:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6834230215774062575}
   serializedVersion: 8
-  lengthInSec: 2
+  lengthInSec: 1
   simulationSpeed: 1
   stopAction: 0
   cullingMode: 1

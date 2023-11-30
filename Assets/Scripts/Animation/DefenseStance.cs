@@ -9,8 +9,17 @@ using Unity.VisualScripting;
 using System;
 //while this script is active,
 //delta X and Y of camera movement will be sent to animator parameter for parry stance blendtree
-public class DefenseStance : MonoBehaviour
+public class DefenseStance : MonoBehaviour, IParryDamageable
 {
+    private static DefenseStance _instance;
+    public static DefenseStance Instance
+    {
+        get
+        {
+            if (_instance == null) { Debug.Log("no defense stance controller"); return null; }
+            return _instance;
+        }
+    }
     [SerializeField]
     InputActionReference look, attack;
     bool _defenseActive;
@@ -26,6 +35,9 @@ public class DefenseStance : MonoBehaviour
     private int _animIDattackBuffer;
     private int _animIDattack;
     private int _animIDdefending;
+    private int _animIDspecialAttack;
+    private int _animIDHit;
+    private int _animIDBlocked;
 
     private int _animLayerUpperbody;
     private float _layerWeight = 0;
@@ -41,6 +53,12 @@ public class DefenseStance : MonoBehaviour
     public UnityEvent onDefense = new UnityEvent();
     public UnityEvent offDefense = new UnityEvent();
 
+    public UnityEvent onSpecialAttack = new UnityEvent();
+    public UnityEvent onEndSpecialAttack = new UnityEvent();
+
+    public UnityEvent<float> onTakeDamage = new UnityEvent<float>();
+
+
     bool ableToDefend = true;
     bool ableToAttack = true;
     bool attackBuffer;
@@ -48,16 +66,21 @@ public class DefenseStance : MonoBehaviour
     float bufferTimerMax = .3f;
 
     bool defending;
+    bool specialAttacking;
 
+    public int currentSpecialCounter = 1;
+    public int maxSpecialCounter = 1;
+
+    private void Awake()
+    {
+        _instance = this;
+    }
     private void OnEnable()
     {
-        if (!TryGetComponent<Animator>(out _animator))
-        {
-            Debug.Log("NO ANIMATOR SET ON DEFENSESTANCE");
-        }
+        _animator = GetComponentInParent<Animator>();
     }
     private void Start()
-    {
+    {   
         _animIDdeltaX = Animator.StringToHash("DragX");
         _animIDdeltaY = Animator.StringToHash("DragY");
         _animIDdeltaAttackX = Animator.StringToHash("DragAttackX");
@@ -67,6 +90,10 @@ public class DefenseStance : MonoBehaviour
         _animIDattackBuffer = Animator.StringToHash("AttackBuffer");
         _animIDdefending = Animator.StringToHash("Defending");
         _animLayerUpperbody = _animator.GetLayerIndex("Strafe_UpperSword");
+        _animIDspecialAttack = Animator.StringToHash("SpecialAttack");
+
+        _animIDBlocked = Animator.StringToHash("Blocked");
+        _animIDHit = Animator.StringToHash("GotHit");
     }
 
     private void Update()
@@ -119,9 +146,40 @@ public class DefenseStance : MonoBehaviour
     }
 
     //Input
+    private void OnRestart(InputValue value)
+    {
+        FinishManager.Instance.RestartLevel();
+    }
     private void OnBlock(InputValue value)
     {
         _defenseActive = value.isPressed;
+    }
+
+    private void OnSpecialAttack(InputValue value)
+    {
+        if (defending && currentSpecialCounter > 0)
+        {
+            onSpecialAttack.Invoke();
+            _animator.SetTrigger(_animIDspecialAttack);
+            _animator.SetBool(_animIDattackBuffer, true);
+            specialAttacking = true;
+
+            currentSpecialCounter--;
+            //character 
+        }
+    }
+    //attach to end of special attack so off-defense can be invoked
+    public void EndSpecialAttack()
+    {
+        if (!specialAttacking) return;
+        specialAttacking = false;
+        onEndSpecialAttack.Invoke();
+        _animator.SetBool(_animIDattackBuffer, false);
+    }
+    public void AddSpecialAttackCounter(int count)
+    {
+        currentSpecialCounter += count;
+        if (currentSpecialCounter > maxSpecialCounter) currentSpecialCounter = maxSpecialCounter;
     }
 
     //Attack
@@ -192,8 +250,8 @@ public class DefenseStance : MonoBehaviour
     }
     private void SetEvent(bool enable)
     {
-        if (enable) onDefense.Invoke();
-        else offDefense.Invoke();
+        if (!enable && !specialAttacking) offDefense.Invoke();
+        else onDefense.Invoke();
     }
 
     //Animation event, raised during attack animation for attack cancel into defense motion
@@ -209,4 +267,45 @@ public class DefenseStance : MonoBehaviour
         ableToAttack = false;
     }
 
+    [Header("Parry")]
+    public float blockAngleThreshold = 15f;
+    public void TakeDamage(float damage, float angle)
+    {
+        if (defending && CalculateSuccessfulBlock(angle))
+        {
+            //no dmg
+            Debug.Log("successful block");
+            _animator.SetTrigger(_animIDBlocked);
+        }
+        else if (defending)
+        {
+            //reduced dmg
+            Debug.Log("missed block");
+            _animator.SetTrigger(_animIDHit);
+            onTakeDamage.Invoke(damage * .8f);
+        }
+        else if (!defending)
+        {
+            //full dmg
+            Debug.Log("took dmg");
+            _animator.SetTrigger(_animIDHit);
+            onTakeDamage.Invoke(damage * 1f);
+        }
+
+    }
+
+    public bool CalculateSuccessfulBlock(float projAngle)
+    {
+        float blockAngle = ((this.angle - 90) % 360 + 360) % 360;
+        float projAngleA = (projAngle % 360 + 360) % 360;
+        float projAngleB = ((projAngle + 180) % 360 + 360) % 360;
+
+        float deltaA = Mathf.Abs(Mathf.DeltaAngle(blockAngle, projAngleA));
+        float deltaB = Mathf.Abs(Mathf.DeltaAngle(blockAngle, projAngleB));
+
+        //Debug.Log("Block angle: " + blockAngle + "         Proj angle: " + projAngleA + " annnnd : "+projAngleB);
+        //Debug.Log("Dif A : " + deltaA + "                 Dif B : " + deltaB);
+
+        return deltaA < blockAngleThreshold || deltaB < blockAngleThreshold;
+    }
 }

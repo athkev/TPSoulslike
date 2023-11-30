@@ -1,4 +1,5 @@
-﻿    using UnityEngine;
+﻿using UnityEngine;
+using System.Collections;
 #if ENABLE_INPUT_SYSTEM 
 using UnityEngine.InputSystem;
 #endif
@@ -48,6 +49,7 @@ namespace StarterAssets
         [Header("Player Grounded")]
         [Tooltip("If the character is grounded or not. Not part of the CharacterController built in grounded check")]
         public bool Grounded = true;
+        bool groundCheckEnable = true;
 
         [Tooltip("Useful for rough ground")]
         public float GroundedOffset = -0.14f;
@@ -115,6 +117,7 @@ namespace StarterAssets
         [Header("Wall Run")]
         public LayerMask wallRunnable;
         private bool isWallRunning = false;
+        private bool isDashing = false;
         private Vector3 wallRunDirection;
 
         bool onLeftWall;
@@ -172,8 +175,12 @@ namespace StarterAssets
         private void Update()
         {
             _hasAnimator = TryGetComponent(out _animator);
-
-            if (!isWallRunning)
+            
+            if (isDashing)
+            {
+                Dash();
+            }
+            else if (!isWallRunning)
             {
                 GroundedCheck();
                 JumpAndGravity();
@@ -188,7 +195,7 @@ namespace StarterAssets
             {
                 HandleWallRun();
             }
-            else
+            else if (!isDashing)
             {
                 Move();
             }
@@ -211,8 +218,16 @@ namespace StarterAssets
             _animIDWallJump = Animator.StringToHash("WallJump");
         }
 
+        public void SetGroundCheck(bool enable)
+        {
+            groundCheckEnable = enable;
+            if (!enable) Grounded = false;
+        }
+
         private void GroundedCheck()
         {
+            if (!groundCheckEnable) return;
+
             // set sphere position, with offset
             Vector3 spherePosition = new Vector3(transform.position.x, transform.position.y - GroundedOffset,
                 transform.position.z);
@@ -385,7 +400,7 @@ namespace StarterAssets
         {
             onLeftWall = Physics.Raycast(transform.position + new Vector3(0, 1, 0), isWallRunning? -transform.right : -_mainCamera.transform.right, out leftWallHit, 0.7f, wallRunnable);
             onRightWall = Physics.Raycast(transform.position + new Vector3(0, 1, 0), isWallRunning ? transform.right : _mainCamera.transform.right, out rightWallHit, 0.7f, wallRunnable);
-            if ((onRightWall || onLeftWall) && !isWallRunning && _input.jump)
+            if ((onRightWall || onLeftWall) && !isWallRunning && enableJump && _input.jump)
             {
                 if (onRightWall) currentlyOnLeft = false;
                 else currentlyOnLeft = true;
@@ -459,9 +474,9 @@ namespace StarterAssets
             {
                 //move towards where camera is facing
                 ExitWallRun();
-                JumpTowards(_mainCamera.transform.forward);
+                JumpTowardsCamera();
             }
-            else if ((currentlyOnLeft && !onLeftWall) || (!currentlyOnLeft && !onRightWall))
+            else if ((currentlyOnLeft && !onLeftWall) || (!currentlyOnLeft && !onRightWall) || !enableJump)
             {
                 //give previous momentum
                 ExitWallRun();
@@ -473,6 +488,53 @@ namespace StarterAssets
             _rb.AddForce(towards * JumpHeight, ForceMode.VelocityChange);
             _animator.SetTrigger(_animIDWallJump);
             transform.rotation = Quaternion.Euler(0, _mainCamera.transform.eulerAngles.y, 0);
+        }
+        public void JumpTowardsCamera()
+        {
+            JumpTowards(_mainCamera.transform.forward);
+        }
+
+        //Dash movements
+        Vector3 dashDirection;
+        float dashForce;
+        float minimumDashForce = 25f;
+        float maximumDashForce = 50f;
+        Vector3 savedVelocity;
+        public void OnDashWindUp()
+        {
+            savedVelocity = _rb.velocity;
+            isDashing = true;
+            dashForce = Mathf.Clamp(.4f * _rb.velocity.magnitude, 0, 4f);
+            dashDirection = _rb.velocity.normalized;
+        }
+        public void OnDashStart()
+        {
+            isDashing = true;
+            dashForce = Mathf.Clamp(1.5f * savedVelocity.magnitude, minimumDashForce, maximumDashForce);
+            dashDirection =  _mainCamera.transform.forward;
+            transform.rotation = _mainCamera.transform.rotation ;
+        }
+        public void OnDashEnd()
+        {
+            isDashing = false;
+            StartCoroutine(RotateOverTime(.2f));
+        }
+        private void Dash()
+        {
+            _rb.velocity = dashDirection * dashForce;
+        }
+        IEnumerator RotateOverTime(float duration)
+        {
+            float elapsedTime = 0f;
+            Quaternion startRotation = transform.rotation;
+            Quaternion endRotation = Quaternion.Euler(0, transform.eulerAngles.y, 0);
+
+            while (elapsedTime < duration)
+            {
+                transform.rotation = Quaternion.Lerp(startRotation, endRotation, elapsedTime / duration);
+                elapsedTime += Time.deltaTime;
+                yield return null;
+            }
         }
 
         private void OnDrawGizmos()
@@ -489,12 +551,13 @@ namespace StarterAssets
             // Draw the ray for left wall
             if (!onLeftWall) Gizmos.color = Color.red;
             else Gizmos.color = Color.green;
-            Gizmos.DrawRay(transform.position + new Vector3(0, 1, 0), isWallRunning ? -transform.right : -_mainCamera.transform.right * 0.7f);
+            
+            if (_mainCamera) Gizmos.DrawRay(transform.position + new Vector3(0, 1, 0), isWallRunning ? -transform.right : -_mainCamera.transform.right * 0.7f);
 
             // Draw the ray for right wall
             if (!onRightWall) Gizmos.color = Color.red;
             else Gizmos.color = Color.green;
-            Gizmos.DrawRay(transform.position + new Vector3(0, 1, 0), isWallRunning ? transform.right : _mainCamera.transform.right * 0.7f);
+            if (_mainCamera) Gizmos.DrawRay(transform.position + new Vector3(0, 1, 0), isWallRunning ? transform.right : _mainCamera.transform.right * 0.7f);
         }
             
         private void OnFootstep(AnimationEvent animationEvent)
