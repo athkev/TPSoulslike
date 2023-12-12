@@ -6,10 +6,12 @@
     <img src="https://img.shields.io/badge/Language-C%23-brightgreen" alt="language" />
 </div>
 
+https://dksxod2000.itch.io/neonguard
+
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-[![Project Demo](https://img.youtube.com/vi/dgE-XGBMsio/0.jpg)](https://youtu.be/dgE-XGBMsio)
+[![Project Demo](https://img.youtube.com/vi/VPy-MLR4ogw/0.jpg)](https://youtu.be/VPy-MLR4ogw)
 
 1. **Fast paced combat**
 
