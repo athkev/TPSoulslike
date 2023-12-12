@@ -58,6 +58,7 @@ public class DefenseStance : MonoBehaviour, IParryDamageable
 
     public UnityEvent<float> onTakeDamage = new UnityEvent<float>();
 
+    public UnityEvent onBlockSucess, onBlockFail;
 
     bool ableToDefend = true;
     bool ableToAttack = true;
@@ -276,13 +277,15 @@ public class DefenseStance : MonoBehaviour, IParryDamageable
             //no dmg
             Debug.Log("successful block");
             _animator.SetTrigger(_animIDBlocked);
+            onBlockSucess.Invoke();
         }
         else if (defending)
         {
             //reduced dmg
             Debug.Log("missed block");
             _animator.SetTrigger(_animIDHit);
-            onTakeDamage.Invoke(damage * .8f);
+            onTakeDamage.Invoke(damage * .3f);
+            onBlockFail.Invoke();
         }
         else if (!defending)
         {

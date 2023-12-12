@@ -1,13 +1,16 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
+using UnityEngine.Events;
 public class PlayerParryAttack : MonoBehaviour
 {
     Collider c;
     public float colliderUpDuration = .33f;
     public float dmg = 1f;
     public TrackingProjectile deflectedProjectilePrefab;
+
+    public UnityEvent onParry;
+
     private void OnEnable()
     {
         c = GetComponent<Collider>();
@@ -40,6 +43,7 @@ public class PlayerParryAttack : MonoBehaviour
                 GameObject origin = parryable.origin;
                 GameObject.Destroy(parryable.gameObject);
                 SpawnParryProjectile(origin);
+                onParry.Invoke();
             }
         }
     }

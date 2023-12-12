@@ -109,14 +109,14 @@ namespace StarterAssets
         private float speedY;
         private Vector3 speedVector;
 
-        private bool enableSprint = true;
+        public bool enableSprint = true;
         private bool enableJump = true;
-        private bool enableMovement = true;
+        public bool enableMovement = true;
         private bool enableRotation = true;
 
         [Header("Wall Run")]
         public LayerMask wallRunnable;
-        private bool isWallRunning = false;
+        public bool isWallRunning = false;
         private bool isDashing = false;
         private Vector3 wallRunDirection;
 

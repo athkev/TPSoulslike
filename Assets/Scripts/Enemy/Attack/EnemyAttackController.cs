@@ -9,6 +9,14 @@ public class EnemyAttackController : MonoBehaviour
     bool active;
     GameObject target;
     Coroutine attackCoroutine;
+    private void Start()
+    {
+        
+    }
+    private void OnDisable()
+    {
+        StopAttack();
+    }
     public void StartAttack(GameObject target)
     {
         active = true;

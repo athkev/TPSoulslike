@@ -8,15 +8,19 @@ public class Health : MonoBehaviour
     public float initialHP = 10f;
     public float currentHP;
     private int _animIDdeath;
+    private int _animIDHit;
 
+    public UnityEvent onHit;
     public UnityEvent onDeath;
-    bool dead;
+    public bool dead;
 
     private void Start()
     {
         currentHP = initialHP;
         _animator = GetComponentInParent<Animator>();
+        if (_animator == null) _animator = GetComponentInChildren<Animator>();
         _animIDdeath = Animator.StringToHash("Death");
+        _animIDHit = Animator.StringToHash("Hit");
         dead = false;
     }
     public void Damage(float dmg)
@@ -34,6 +38,12 @@ public class Health : MonoBehaviour
             if (_animator) _animator.SetTrigger(_animIDdeath);
             onDeath.Invoke();
             dead = true;
+        }
+        else
+        {
+            _animator.SetTrigger(_animIDHit);
+            onHit.Invoke();
+            Debug.Log("hit");
         }
     }
 

@@ -11,7 +11,7 @@
 
 [![Project Demo](https://img.youtube.com/vi/dgE-XGBMsio/0.jpg)](https://youtu.be/dgE-XGBMsio)
 
-1. **Souls-like Combat**
+1. **Fast paced combat**
 
 2. **Wall Run Mechanics**
 

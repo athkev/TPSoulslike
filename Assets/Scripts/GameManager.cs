@@ -7,7 +7,7 @@ using UnityEngine.Events;
 public class GameManager : MonoBehaviour
 {
     bool isInside;
-    public List<EnemyAttackController> enemies;
+    public List<Health> enemies;
 
     public UnityEvent onStart;
     public UnityEvent onFinish;
@@ -18,7 +18,7 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
-        enemies = GetComponentsInChildren<EnemyAttackController>().ToList<EnemyAttackController>();
+        enemies = GetComponentsInChildren<Health>().ToList<Health>();
         Time.timeScale = 0f;
         StartCoroutine(GameInit());
     }
@@ -67,7 +67,7 @@ public class GameManager : MonoBehaviour
     {
         for (int i = 0; i < enemies.Count; i++)
         {
-            if (enemies[i].gameObject.activeInHierarchy) return false;
+            if (!enemies[i].dead) return false;
         }
         return true;
     }
