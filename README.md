@@ -11,7 +11,7 @@ https://dksxod2000.itch.io/neonguard
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-[![Project Demo](https://img.youtube.com/vi/VPy-MLR4ogw/0.jpg)](https://youtu.be/VPy-MLR4ogw)
+![Project Demo](https://github.com/athkev/TPSoulslike/blob/main/proj.gif)
 
 1. **Fast paced combat**
 
